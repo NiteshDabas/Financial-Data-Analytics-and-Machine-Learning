@@ -5,6 +5,7 @@
 
 # In this file I am going to write finance domain specific functions(financial tools) which performs specific risk evaluation tasks and we are going to import this file as a module named Finance_Risk_Toolkit in another file where I will use these tools.
 
+
 # In[1]:
 
 
@@ -15,6 +16,7 @@ import scipy.stats
 from scipy.stats import norm
 from scipy.stats import skew
 from scipy.stats import kurtosis
+from scipy.optimize import minimize
 
 
 # In[2]:
@@ -117,4 +119,127 @@ def VaR_gaussian(s, alpha=5, modified=False):
                 (2*z**3 - 5*z)*(s**2)/36
             )
     return -(s.mean() + z*s.std(ddof=0))
+        
 
+# In[10]:
+
+
+#function to load and format the 30 Industry Portfolios Value Weighted Monthly Returns
+def get_ind_returns():
+    industy_returns_data = pd.read_csv("../Data/dataset_ind30_vw_returns.csv", header=0, index_col=0)/100
+    industy_returns_data.index = pd.to_datetime(industy_returns_data.index, format="%Y%m").to_period('M')
+    industy_returns_data.columns = industy_returns_data.columns.str.strip()
+    return industy_returns_data
+
+
+# In[11]:
+
+
+#function to return annualized returns of his/her investment
+def annualize_rets(s, periods_per_year):
+    compounded_growth = (1+s).prod()
+    n_periods = s.shape[0]
+    return compounded_growth**(periods_per_year/n_periods)-1
+
+
+# In[12]:
+
+
+#function to return annualized volatility of his/her investment
+def annualize_vol(s, periods_per_year):
+    return s.std()*(periods_per_year**0.5)
+
+
+# In[13]:
+
+
+#function to calculate annualized sharpe ratio of a set of returns
+def sharpe_ratio(s, riskfree_rate, periods_per_year):
+    # convert the annual riskfree rate to per period
+    rf_per_period = (1+riskfree_rate)**(1/periods_per_year)-1
+    excess_ret = s - rf_per_period
+    ann_ex_ret = annualize_rets(excess_ret, periods_per_year)
+    ann_vol = annualize_vol(s, periods_per_year)
+    return ann_ex_ret/ann_vol
+
+
+# In[14]:
+
+
+#function to compute the returns of a portfolio, given a set of weights, returns, and a covariance matrix.
+def portfolio_return(weights, returns):
+    return weights.T @ returns
+
+
+# In[15]:
+
+
+#function to compute the volatility of a portfolio, given a set of weights, returns, and a covariance matrix.
+def portfolio_vol(weights, covmat):
+    return (weights.T @ covmat @ weights)**0.5
+
+
+# In[16]:
+
+
+#function to plot 2-assets efficient frontier
+def plot_ef2(n_points, er, cov):
+    if er.shape[0] != 2 or er.shape[0] != 2:
+        raise ValueError("plot_ef2 can only plot 2-asset frontiers")
+    weights = [np.array([w, 1-w]) for w in np.linspace(0, 1, n_points)]
+    rets = [portfolio_return(w, er) for w in weights]
+    vols = [portfolio_vol(w, cov) for w in weights]
+    ef = pd.DataFrame({
+        "Returns": rets, 
+        "Volatility": vols
+    })
+    return ef.plot.line(x="Volatility", y="Returns", style=".-")
+
+
+# In[17]:
+
+
+#function to minimize the volatility for a given level of returns
+def minimize_vol(target_return, er, cov):
+    n = er.shape[0]
+    init_guess = np.repeat(1/n, n)
+    bounds = ((0.0, 1.0),) * n # an N-tuple of 2-tuples!
+    # construct the constraints
+    weights_sum_to_1 = {'type': 'eq',
+                        'fun': lambda weights: np.sum(weights) - 1
+    }
+    return_is_target = {'type': 'eq',
+                        'args': (er,),
+                        'fun': lambda weights, er: target_return - portfolio_return(weights,er)
+    }
+    weights = minimize(portfolio_vol, init_guess,
+                       args=(cov,), method='SLSQP',
+                       options={'disp': False},
+                       constraints=(weights_sum_to_1,return_is_target),
+                       bounds=bounds)
+    return weights.x
+
+
+# In[18]:
+
+
+# Optimizes the weights given a particular gridspace
+def optimal_weights(n_points, er, cov):
+    target_rs = np.linspace(er.min(), er.max(), n_points)
+    weights = [minimize_vol(target_return, er, cov) for target_return in target_rs]
+    return weights
+
+
+# In[19]:
+
+
+#function to plot multi-asset efficient frontier
+def plot_ef(n_points, er, cov):
+    weights = optimal_weights(n_points, er, cov)
+    rets = [portfolio_return(w, er) for w in weights]
+    vols = [portfolio_vol(w, cov) for w in weights]
+    ef = pd.DataFrame({
+        "Returns": rets, 
+        "Volatility": vols
+    })
+    return ef.plot.line(x="Volatility", y="Returns", style='.-', legend=False)
