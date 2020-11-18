@@ -249,7 +249,16 @@ def msr(riskfree_rate, er, cov):
     return weights.x
 
 
-# In[18]:
+# In[19]:
+
+
+#function to return the weights of the Global Minimum Volatility portfolio given a covariance matrix
+def gmv(cov):
+    n = cov.shape[0]
+    return msr(0, np.repeat(1, n), cov)
+
+
+# In[20]:
 
 
 # Optimizes the weights given a particular gridspace
@@ -259,11 +268,14 @@ def optimal_weights(n_points, er, cov):
     return weights
 
 
-# In[19]:
+# In[21]:
 
 
 #function to plot multi-asset efficient frontier
-def plot_ef(n_points, er, cov, style='.-', legend=False, show_cml=False, riskfree_rate=0):
+def plot_ef(n_points, er, cov, style='.-', legend=False, show_cml=False, riskfree_rate=0, show_ew=False, show_gmv=False):
+    """
+    Plots the multi-asset efficient frontier
+    """
     weights = optimal_weights(n_points, er, cov)
     rets = [portfolio_return(w, er) for w in weights]
     vols = [portfolio_vol(w, cov) for w in weights]
@@ -281,5 +293,19 @@ def plot_ef(n_points, er, cov, style='.-', legend=False, show_cml=False, riskfre
         # add CML
         cml_x = [0, vol_msr]
         cml_y = [riskfree_rate, r_msr]
-        ax.plot(cml_x, cml_y, color='green', marker='o', linestyle='dashed', linewidth=2, markersize=12)
-    return ax
+        ax.plot(cml_x, cml_y, color='green', marker='o', linestyle='dashed', linewidth=2, markersize=10)
+    if show_ew:
+        n = er.shape[0]
+        w_ew = np.repeat(1/n, n)
+        r_ew = portfolio_return(w_ew, er)
+        vol_ew = portfolio_vol(w_ew, cov)
+        # add EW
+        ax.plot([vol_ew], [r_ew], color='goldenrod', marker='o', markersize=10)
+    if show_gmv:
+        w_gmv = gmv(cov)
+        r_gmv = portfolio_return(w_gmv, er)
+        vol_gmv = portfolio_vol(w_gmv, cov)
+        # add EW
+        ax.plot([vol_gmv], [r_gmv], color='midnightblue', marker='o', markersize=10)
+        
+        return ax
