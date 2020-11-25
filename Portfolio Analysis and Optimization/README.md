@@ -2,7 +2,7 @@
 
 In this space I will work on portfolio analysis and optimization steps which can help reduce risks associated to investment portfolios. Financial tools helpful in this regard which are covered by me:<br/>
 
-1. Drawdown<br/>
+1. Drawdown Measures<br/>
 2. Jarque-Bera test of normailty<br/>
 3. Semideviation<br/>
 4. Historic VaR at a specified alpha<br/>
